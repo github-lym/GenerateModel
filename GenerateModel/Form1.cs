@@ -1,15 +1,13 @@
-﻿using System;
+﻿using IniFiles;
+using System;
 using System.Collections.Generic;
-using System.ComponentModel;
 using System.Data;
 using System.Data.SqlClient;
-using System.Drawing;
 using System.IO;
 using System.Linq;
 using System.Reflection;
 using System.Text;
 using System.Text.RegularExpressions;
-using System.Threading.Tasks;
 using System.Windows.Forms;
 
 namespace GenerateModel
@@ -17,28 +15,49 @@ namespace GenerateModel
     public partial class Form1 : Form
     {
         static string exePath = string.Empty;
-        static IniManager iniManager;
-        static string conn = string.Empty;
-        static string queryStr = string.Empty;
+        IniFile ini = new IniFile("settings.ini");
 
         public Form1()
         {
             InitializeComponent();
-            exePath = Path.GetDirectoryName(Assembly.GetExecutingAssembly().Location); ;
-            iniManager = new IniManager(Path.Combine(exePath, "setting.ini"));
-            conn = iniManager.ReadIniFile("ConnectionStrings", "Value", string.Empty);
-            this.TBX_ConnectionStrings.Text = conn;
+            exePath = Path.GetDirectoryName(Assembly.GetExecutingAssembly().Location);
+            CB_ConnectionStrings.Items.Add("無");
+            CB_ConnectionStrings.SelectedItem = "無";
+            //取得已有情境
+            string ini_opt = ini.ReadString("Option", "Value");
+            string[] opts = ini_opt.Split(new char[] { ';' }, StringSplitOptions.RemoveEmptyEntries);
+            if (opts.Length > 0)
+                foreach (var item in opts)
+                    CB_ConnectionStrings.Items.Add(item);
+            //string conn = iniManager.ReadIniFile("ConnectionStrings", "Value", string.Empty);
+            //this.TBX_ConnectionStrings.Text = conn;
+        }
+
+        private void CB_ConnectionStrings_Change(object sender, EventArgs e)
+        {
+            string opt_string = CB_ConnectionStrings.Text;
+            if (string.IsNullOrWhiteSpace(opt_string) || "無".Equals(opt_string))
+                TBX_ConnectionString.Text = string.Empty;
+            else
+            {
+                string conn = ini.ReadString(opt_string, "ConnectionString");
+                if (!string.IsNullOrWhiteSpace(conn))
+                    TBX_ConnectionString.Text = conn.Trim();
+                else
+                    TBX_ConnectionString.Text = string.Empty;
+            }
         }
 
         private void BTN_Generate_Click(object sender, EventArgs e)
         {
             try
             {
+                string queryStr = string.Empty;
                 if (this.TypeA.Checked)
                 {
                     queryStr = this.TBX_Query.Text;
 
-                    if (string.Empty.Equals(conn) || string.Empty.Equals(queryStr))
+                    if (string.Empty.Equals(queryStr))
                     {
                         MessageBox.Show("連線字串或查詢字串為空");
                         return;
@@ -47,7 +66,7 @@ namespace GenerateModel
                     DataTable schemaTable = new DataTable();
                     try
                     {
-                        using (SqlConnection sqlConn = new SqlConnection(conn))
+                        using (SqlConnection sqlConn = new SqlConnection(TBX_ConnectionString.Text.Trim()))
                         {
                             using (SqlCommand cmd = sqlConn.CreateCommand())
                             {
@@ -183,7 +202,7 @@ namespace GenerateModel
 
                     this.TBX_Result.Text = sb.ToString();
                 }
-                else if (this.TypeB.Checked)
+                else if (this.TypeB.Checked)    //目前用不到
                 {
                     Regex pattern = new Regex(@"<input\s.*name=""(?<v>.+?)""", RegexOptions.Compiled | RegexOptions.IgnoreCase);
                     MatchCollection matches = pattern.Matches(this.TBX_Query.Text);
@@ -211,8 +230,6 @@ namespace GenerateModel
                         this.TBX_Result.Text = sb.ToString();
                     }
                 }
-
-
             }
             catch (Exception ex)
             {
